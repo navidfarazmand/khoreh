@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Due by Dusk</title>
+<meta name="description" content="Due by Dusk is a farming game for Android: swipe to cut crops, keep the chain going and pay the bills before sundown, across 30 farms in seven countries.">
+<meta name="theme-color" content="#5C4E94">
+<link rel="icon" href="/due-by-dusk/img/icon-64.png">
+<link rel="apple-touch-icon" href="/due-by-dusk/img/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Khoreh">
+<meta property="og:title" content="Due by Dusk: a little farm, a very big debt">
+<meta property="og:description" content="Swipe to cut, chain for more, pay by dusk. A farming game for Android, now in testing.">
+<meta property="og:url" content="https://khoreh.com/due-by-dusk/">
+<meta property="og:image" content="https://khoreh.com/due-by-dusk/img/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://khoreh.com/due-by-dusk/">
+<style>html{color-scheme:light dark}body{margin:0}img{max-width:100%}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800;900&family=Big+Shoulders+Stencil:wght@800&display=swap">
+<style>
+  /* The page plays one farm day: the fixed canvas is the field (the game's own crops and country skylines) and,
+     as you scroll, the sickle cuts, the chain grows, the bill gets paid at dusk, new crops arrive and the farm
+     travels through seven countries. The cards only say what you are seeing, in a line or two. */
+  :root {
+    --ink: #2B1708; --cream: #FFF4DC; --gold: #FFC23D; --sky: #6EC6F0; --green: #2F7A3A; --barn: #C9473A;
+    --card: #FFF4DC; --card-ink: #2B1708; --card-ink-2: #6E4B31; --edge: #2B1708; --page: #6EC6F0;
+    --display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+    --body: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --card: #2E1C0E; --card-ink: #FFF4DC; --card-ink-2: #EACFA8; --edge: #120902; --page: #1D1838; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --card: #2E1C0E; --card-ink: #FFF4DC; --card-ink-2: #EACFA8; --edge: #120902; --page: #1D1838; color-scheme: dark; }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { background: var(--page); color: var(--card-ink); font: 700 1.06rem/1.5 var(--body); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 12px; }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+
+  /* header */
+  .top { position: fixed; top: 0; left: 0; right: 0; z-index: 6; padding-top: calc(12px + env(safe-area-inset-top, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: none; }
+  .bar { pointer-events: auto; max-width: 74rem; margin: 0 auto; display: flex; align-items: center; gap: 1rem; padding: .4rem .45rem .4rem .45rem; background: var(--card); border: 3px solid var(--edge); border-radius: 18px; box-shadow: 0 4px 0 var(--edge); }
+  .brand { display: inline-flex; align-items: center; gap: .6rem; font: 400 1.4rem/1 var(--display); text-decoration: none; color: var(--card-ink); letter-spacing: .01em; }
+  .brand img { width: 2.15rem; height: 2.15rem; border-radius: 10px; border: 2px solid var(--edge); display: block; }
+  .nav { display: flex; gap: 1.3rem; margin-left: auto; font-weight: 800; font-size: .95rem; }
+  .nav a { text-decoration: none; color: var(--card-ink-2); }
+  .nav a:hover { color: var(--card-ink); }
+  @media (max-width: 760px) { .nav { display: none; } .bar .btn { margin-left: auto; } }
+
+  /* buttons, like the game's */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; background: var(--gold); color: var(--ink); font: 400 1.14rem/1 var(--display); letter-spacing: .01em; padding: .85rem 1.2rem .8rem; border: 3px solid var(--ink); border-radius: 14px; box-shadow: 0 4px 0 var(--ink); text-decoration: none; white-space: nowrap; transition: transform .1s ease, box-shadow .1s ease; }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 5px 0 var(--ink); }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+  .btn.cream { background: var(--cream); }
+  .btn.blue { background: var(--sky); }
+  .btn.sm { font-size: 1rem; padding: .6rem .9rem .56rem; box-shadow: 0 3px 0 var(--ink); }
+  .btn svg { width: 1.05em; height: 1.05em; flex: none; }
+  .btn .n { display: inline-grid; place-items: center; width: 1.55em; height: 1.55em; border-radius: 50%; background: var(--ink); color: var(--gold); font-size: .78em; padding-top: .08em; }
+
+  /* chapters */
+  main { position: relative; z-index: 1; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .ch { min-height: 112vh; min-height: 112svh; display: flex; align-items: center; padding-block: 12vh; max-width: 74rem; margin: 0 auto; }
+  .card { width: min(28rem, 100%); background: var(--card); border: 3px solid var(--edge); border-radius: 22px; box-shadow: 0 6px 0 var(--edge), 0 26px 40px -24px rgba(20, 10, 0, .55); padding: clamp(1.15rem, 2.4vw, 1.75rem); display: grid; gap: .6rem; min-width: 0; }
+  .card > * { margin: 0; min-width: 0; }
+  @media (min-width: 960px), (min-width: 640px) and (min-aspect-ratio: 13/10) { .card { width: min(28rem, 38vw); } }
+  @media (max-width: 959px) and (max-aspect-ratio: 13/10), (max-width: 639px) {
+    .ch { align-items: flex-end; min-height: 118vh; min-height: 118svh; padding-block: 66vh 3vh; padding-block: 66svh 3svh; }
+    .card { border-radius: 20px; }
+  }
+  .step { display: inline-flex; align-items: center; gap: .5rem; font: 900 .78rem/1 var(--body); letter-spacing: .13em; text-transform: uppercase; color: var(--barn); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .step { color: var(--gold); } }
+  :root[data-theme="dark"] .step { color: var(--gold); }
+  .step b { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--gold); color: var(--ink); border: 2px solid var(--ink); font: 400 1rem/1 var(--display); letter-spacing: 0; padding-top: .1rem; }
+  h2 { font: 400 clamp(2.1rem, 4vw, 3rem)/1 var(--display); letter-spacing: .01em; text-wrap: balance; }
+  .line { font-size: 1.1rem; line-height: 1.45; color: var(--card-ink-2); max-width: 28em; }
+  .fine { font-size: .9rem; color: var(--card-ink-2); }
+
+  /* the opening: the game's title over the field */
+  .hero { min-height: 100vh; min-height: 100svh; padding-block: 7rem 4rem; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1.1rem; }
+  .hero-copy { display: grid; gap: 1rem; justify-items: start; }
+  .logo { margin: 0; font: 400 clamp(3.6rem, 8.4vw, 6.6rem)/.9 var(--display); color: var(--cream); letter-spacing: .01em; -webkit-text-stroke: .13em var(--ink); paint-order: stroke fill; text-shadow: 0 .08em 0 var(--ink); }
+  .logo span { display: inline-block; }
+  .js .logo span { animation: drop .7s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(.25s + var(--i) * 70ms); }
+  @keyframes drop { from { transform: translateY(-.7em) scaleY(1.1); opacity: 0; } 60% { opacity: 1; } to { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .js .logo span { animation: none; } }
+  .pill { margin: 0; display: inline-block; background: var(--ink); color: var(--cream); font: 800 clamp(1rem, 1.6vw, 1.2rem)/1.2 var(--body); padding: .6rem 1.1rem; border-radius: 999px; }
+  .ctas { display: flex; flex-wrap: wrap; gap: .7rem; align-items: center; }
+  .hint { margin: 0; display: inline-flex; align-items: center; gap: .55rem; font: 800 .82rem/1.2 var(--body); color: var(--cream); background: rgba(43, 23, 8, .72); padding: .5rem .85rem; border-radius: 999px; }
+  .hint i { width: .55rem; height: .55rem; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 0 rgba(255, 194, 61, .6); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 .6rem transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+  @media (prefers-reduced-motion: reduce) { .hint i { animation: none; } }
+  @media (max-width: 959px) and (max-aspect-ratio: 13/10), (max-width: 639px) {
+    .hero { justify-content: flex-end; padding-block: 60svh 1.2rem; gap: .8rem; }
+    .hero-copy { gap: .75rem; }
+  }
+
+  /* the travel chapter stays on screen while the countries go by */
+  .ch.world { min-height: 360vh; min-height: 360svh; align-items: flex-start; }
+  .world .card { position: sticky; top: calc(50vh - 8rem); }
+  @media (max-width: 959px) and (max-aspect-ratio: 13/10), (max-width: 639px) { .world .card { top: 64svh; } .ch.world { padding-block: 60svh 6svh; } }
+  .lands { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .2rem; padding: 0; list-style: none; }
+  .lands li { font: 800 .84rem/1 var(--body); padding: .42rem .65rem .4rem; border: 2px solid var(--edge); border-radius: 999px; color: var(--card-ink-2); transition: background .2s, color .2s; }
+  .lands li.on { background: var(--gold); color: var(--ink); }
+
+  /* screens from the game */
+  .shots { flex-direction: column; align-items: stretch; justify-content: center; gap: 1.2rem; }
+  .tag { align-self: flex-start; margin: 0; font: 400 1.3rem/1 var(--display); background: var(--card); color: var(--card-ink); border: 3px solid var(--edge); box-shadow: 0 4px 0 var(--edge); border-radius: 999px; padding: .55rem 1.1rem .5rem; }
+  .phones { display: flex; gap: clamp(.9rem, 2.4vw, 1.8rem); justify-content: center; align-items: center; overflow-x: auto; scroll-snap-type: x mandatory; padding: .8rem .3rem 1.4rem; scrollbar-width: none; margin: 0; }
+  .phones::-webkit-scrollbar { display: none; }
+  .phone { flex: 0 0 auto; width: clamp(16rem, 25vw, 23.5rem); scroll-snap-align: center; margin: 0; display: grid; gap: .7rem; justify-items: center; }
+  .phone img { width: 100%; height: auto; aspect-ratio: 1688 / 780; display: block; border: 7px solid #17100B; border-radius: 1.4rem; background: #17100B; box-shadow: 0 6px 0 var(--edge), 0 26px 40px -20px rgba(0, 0, 0, .6); }
+  .phone:nth-child(2) { transform: translateY(-1.4rem) rotate(-1.5deg); }
+  .phone:nth-child(1) { transform: rotate(1.2deg); }
+  .phone:nth-child(3) { transform: rotate(1.6deg); }
+  .phone figcaption { font: 400 1.05rem/1 var(--display); background: var(--card); color: var(--card-ink); border: 3px solid var(--edge); border-radius: 999px; padding: .45rem .9rem .4rem; }
+  @media (max-width: 959px) and (max-aspect-ratio: 13/10), (max-width: 639px) { .phones { justify-content: flex-start; } .phone { width: 82vw; } .phone:nth-child(n) { transform: none; } .shots { padding-block: 40svh 6svh; } }
+
+  @media (max-height: 520px) and (min-aspect-ratio: 13/10) {
+    .hero { padding-block: 5.2rem 1.5rem; gap: .7rem; } .hero-copy { gap: .6rem; } .logo { font-size: 3.1rem; }
+    .ch { padding-block: 18vh 8vh; } .card { padding: .9rem 1.1rem; gap: .4rem; } h2 { font-size: 1.75rem; } .line { font-size: .98rem; }
+    .world .card { top: 4.6rem; } .btn { font-size: 1rem; padding: .65rem .95rem .6rem; }
+  }
+  .end .card { width: min(32rem, 100%); }
+  @media (min-width: 960px), (min-width: 640px) and (min-aspect-ratio: 13/10) { .end .card { width: min(32rem, 42vw); } }
+  .end .ctas { flex-direction: column; align-items: stretch; }
+  .end .btn { justify-content: flex-start; }
+
+  footer { position: relative; z-index: 1; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 calc(1.5rem + env(safe-area-inset-bottom, 0px)); }
+  .foot { max-width: 74rem; margin: 0 auto; display: flex; flex-wrap: wrap; gap: .7rem 1.5rem; align-items: center; background: var(--card); border: 3px solid var(--edge); box-shadow: 0 4px 0 var(--edge); border-radius: 18px; padding: .9rem 1.2rem; font-size: .92rem; color: var(--card-ink-2); }
+  .foot b { color: var(--card-ink); font: 400 1.15rem/1 var(--display); }
+  .foot nav { display: flex; gap: 1.2rem; margin-left: auto; flex-wrap: wrap; }
+  .foot a { text-decoration: none; font-weight: 800; color: var(--card-ink); }
+  .foot a:hover { text-decoration: underline; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<canvas id="scene" aria-hidden="true"></canvas>
+<header class="top">
+  <div class="bar">
+    <a class="brand" href="#top" aria-label="Due by Dusk, back to the top"><img src="/due-by-dusk/img/icon-64.png" alt="" width="64" height="64">Due by Dusk</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#cut">How it plays</a>
+      <a href="#world">Countries</a>
+      <a href="/">All games</a>
+    </nav>
+    <a class="btn sm" href="#join">Join the test</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="ch hero" aria-labelledby="h-hero">
+    <div class="hero-copy" data-stage="0">
+      <h1 class="logo" id="h-hero">Due by Dusk</h1>
+      <p class="pill">A little farm. A very big debt.</p>
+      <div class="ctas">
+        <a class="btn" href="#join"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 4.5v15l12.5-7.5z"/></svg>Join the test</a>
+        <a class="btn cream" href="#cut">How it plays</a>
+      </div>
+    </div>
+    <p class="hint"><i aria-hidden="true"></i>Scroll to play a day</p>
+  </section>
+
+  <section class="ch" id="cut" aria-labelledby="h-cut">
+    <div class="card" data-stage="1">
+      <p class="step"><b>1</b>Cut</p>
+      <h2 id="h-cut">Swipe to cut.</h2>
+      <p class="line">Drag your finger through the field. Every crop pays.</p>
+    </div>
+  </section>
+
+  <section class="ch" id="chain" aria-labelledby="h-chain">
+    <div class="card" data-stage="2">
+      <p class="step"><b>2</b>Chain</p>
+      <h2 id="h-chain">Don't stop.</h2>
+      <p class="line">Keep cutting and the chain grows, up to double pay.</p>
+    </div>
+  </section>
+
+  <section class="ch" id="pay" aria-labelledby="h-pay">
+    <div class="card" data-stage="3">
+      <p class="step"><b>3</b>Pay</p>
+      <h2 id="h-pay">Pay by dusk.</h2>
+      <p class="line">Grumble &amp; Sons send a bill every other day. It's due at sundown.</p>
+    </div>
+  </section>
+
+  <section class="ch" id="grow" aria-labelledby="h-grow">
+    <div class="card" data-stage="4">
+      <p class="step"><b>4</b>Grow</p>
+      <h2 id="h-grow">Richer crops.</h2>
+      <p class="line">Every bill you pay adds a new crop that's worth more.</p>
+    </div>
+  </section>
+
+  <section class="ch world" id="world" aria-labelledby="h-world">
+    <div class="card pin" data-stage="5">
+      <p class="step"><b>5</b>Travel</p>
+      <h2 id="h-world">Seven countries.</h2>
+      <p class="line">30 farms, from Canada to Japan.</p>
+      <ul class="lands" id="lands" aria-label="The countries, in the order you visit them">
+        <li class="on">Canada</li><li>USA</li><li>Brazil</li><li>Morocco</li><li>France</li><li>China</li><li>Japan</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ch shots" aria-labelledby="h-shots">
+    <h2 class="tag" id="h-shots">Straight from the game</h2>
+    <div class="phones" role="list" data-stage="6">
+      <figure class="phone" role="listitem"><img src="/due-by-dusk/img/shot-field.webp" alt="The field in Canada: carrots in snowy soil, a sickle cutting, a chain of 16 and 20 seconds of daylight left" width="1688" height="780" loading="lazy" decoding="async"><figcaption>The field</figcaption></figure>
+      <figure class="phone" role="listitem"><img src="/due-by-dusk/img/shot-sundown.webp" alt="The Sundown card: 29 dollars earned today and a 120-dollar seed loan due tomorrow" width="1688" height="780" loading="lazy" decoding="async"><figcaption>Sundown</figcaption></figure>
+      <figure class="phone" role="listitem"><img src="/due-by-dusk/img/shot-world.webp" alt="The world map: Canada, the USA, Brazil, Morocco, France, China and Japan joined by a dotted route" width="1688" height="780" loading="lazy" decoding="async"><figcaption>World map</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="ch end" id="join" aria-labelledby="h-join">
+    <div class="card" data-stage="7">
+      <p class="step">Free on Android</p>
+      <h2 id="h-join">Join the test.</h2>
+      <div class="ctas">
+        <a class="btn" href="https://groups.google.com/g/due-by-dusk-testers"><span class="n">1</span>Join the testers group</a>
+        <a class="btn blue" href="https://play.google.com/apps/testing/com.khoreh.duebydusk"><span class="n">2</span>Get it on Google Play</a>
+      </div>
+      <p class="fine">No account, no purchases. Ads only when you want a bonus.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="foot">
+    <b>Due by Dusk</b>
+    <span>© 2026 Khoreh</span>
+    <nav aria-label="About">
+      <a href="/due-by-dusk/privacy.html">Privacy</a>
+      <a href="mailto:info@khoreh.com">info@khoreh.com</a>
+      <a href="/">All games</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(() => {
+  document.documentElement.classList.add('js');
+  const logo = document.querySelector('.logo');
+  if (logo) { const words = logo.textContent.split(' '); logo.textContent = ''; words.forEach((w, i) => { if (i) logo.append(' '); const s = document.createElement('span'); s.textContent = w; s.style.setProperty('--i', i); logo.append(s); }); }
+
+  const cv = document.getElementById('scene'), ctx = cv.getContext('2d');
+  const RM = matchMedia('(prefers-reduced-motion: reduce)');
+  const IMG = '/due-by-dusk/img/';
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const ease = (t) => t * t * (3 - 2 * t);
+  const back = (t) => { t = clamp(t, 0, 1); const c = 2.1; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+  const hexs = (h) => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+  const mix = (a, b, t) => { const A = hexs(a), B = hexs(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+  const rnd = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
+  // ---- the game's own art
+  const art = {};
+  let relayout = false;
+  function pic(src) { let im = art[src]; if (!im) { im = art[src] = new Image(); im.decoding = 'async'; im.onload = () => { im.ok = true; relayout = true; kick(); }; im.src = IMG + src; } return im; }
+  const crop = (id) => pic('crops/' + id + '.webp');
+  const band = (c) => pic('bands/' + c + '.webp');
+  // what a crop pays before any upgrade (the game's base values)
+  const VAL = { carrot: 1, radish: 5, pei_russet: 14 };
+  const LANDS = [
+    { c: 'ca', name: 'Canada', farms: 6, trio: ['pei_russet', 'fiddlehead', 'saskaberry'], snow: true },
+    { c: 'us', name: 'USA', farms: 3, trio: ['habanero', 'sweetcorn', 'brisket_onion'] },
+    { c: 'br', name: 'Brazil', farms: 5, trio: ['abacaxi', 'mandioca', 'guarana'] },
+    { c: 'ma', name: 'Morocco', farms: 3, trio: ['chickpea', 'eggplant', 'olive'] },
+    { c: 'fr', name: 'France', farms: 5, trio: ['lavender', 'echalote', 'artichaut'] },
+    { c: 'cn', name: 'China', farms: 3, trio: ['bittermelon', 'bokchoy', 'lotusroot'] },
+    { c: 'jp', name: 'Japan', farms: 5, trio: ['daikon', 'kabocha', 'wasabi'] },
+  ];
+
+  // ---- the crops of each chapter: [u, v, type, flags]: on = on the sickle's path, wave = comes up after the swipe
+  // (the field refills, as in the game), at = shows up at that point of the chapter
+  const P = { on: 1 }, NEXT = { wave: 1 };
+  const zig = (n) => Array.from({ length: n }, (_, k) => [0.04 + k * (0.92 / (n - 1)), k % 2 ? 0.86 : 0.2, k % 3 === 1 ? 'radish' : 'carrot', P]);
+  const SETS = [
+    { id: 'home', from: -9, to: 1.2, path: 1, rows: [[0.08, 0.3, 'carrot', P], [0.29, 0.84, 'carrot', P], [0.5, 0.26, 'radish', P], [0.71, 0.8, 'carrot', P], [0.92, 0.34, 'carrot', P], [0.22, 1.12, 'radish'], [0.83, 1.16, 'carrot'],
+      [0.18, 0.55, 'carrot', NEXT], [0.42, 0.62, 'carrot', NEXT], [0.62, 0.36, 'radish', NEXT]] },
+    { id: 'chain', from: 1.2, to: 2.2, path: 2, rows: [...zig(8), [0.2, 0.55, 'carrot', NEXT], [0.47, 0.5, 'radish', NEXT], [0.74, 0.56, 'carrot', NEXT]] },
+    { id: 'pay', from: 2.2, to: 3.24, rows: [[0.05, 1.1, 'carrot'], [0.95, 1.06, 'radish'], [0.24, 1.2, 'radish'], [0.76, 1.22, 'carrot']] },
+    { id: 'grow', from: 3.24, to: 4.24, big: 1.12, rows: [[0.16, 0.86, 'carrot', { at: 0.26 }], [0.5, 0.46, 'radish', { at: 0.46 }], [0.84, 0.86, 'pei_russet', { at: 0.7 }]] },
+    ...LANDS.map((L, k) => ({ id: 'w' + k, from: 4.24, to: 5.5, land: k, big: 1.18, rows: [[0.16, 0.88, L.trio[0]], [0.5, 0.42, L.trio[1]], [0.84, 0.88, L.trio[2]]] })),
+    { id: 'end', from: 6.45, to: 99, rows: [[0.1, 0.78, 'carrot'], [0.36, 0.3, 'pei_russet'], [0.62, 0.86, 'saskaberry'], [0.9, 0.36, 'fiddlehead']] },
+  ];
+  for (const S of SETS) S.crops = S.rows.map(([u, v, type, f], i) => ({ S, u, v, type, on: !!(f && f.on), wave: !!(f && f.wave), at: (f && f.at) || 0, i, x: 0, y: 0, h: 0, ph: rnd(i + S.id.length * 9) * 6.28, vis: false, cut: false, tIn: -1e9, tOut: -1e9, ct: 2 }));
+
+  // ---- layout
+  let W = 0, H = 0, DPR = 1, wide = false, fieldTop = 0, bandH = 0, CH = 60, A = { x: 0, y: 0, w: 1, h: 1 };
+  const field = document.createElement('canvas'), fctx = field.getContext('2d');
+  const paths = {};
+  function size() {
+    W = innerWidth; H = innerHeight; DPR = Math.min(1.75, devicePixelRatio || 1);
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    wide = W >= 960 || (W >= 640 && W / H >= 1.3);
+    if (wide) {
+      fieldTop = Math.round(H * 0.36); bandH = clamp(H * 0.27, 90, 300);
+      CH = clamp(Math.min(W * 0.07, H * 0.13), 44, 124);
+      A = { x: W * 0.47, y: fieldTop + CH * 1.12, w: W * 0.46, h: H - fieldTop - CH * 1.12 - H * 0.12 };
+    } else {
+      fieldTop = Math.round(H * 0.24); bandH = clamp(Math.min(W * 0.4, H * 0.18), 90, 180);
+      CH = clamp(Math.min(W * 0.15, H * 0.075), 46, 84);
+      A = { x: W * 0.08, y: fieldTop + CH * 1.05, w: W * 0.84, h: Math.max(CH * 1.4, H * 0.58 - fieldTop - CH * 1.05 - CH * 0.2) };
+    }
+    paintField(); layout(); measure();
+  }
+  function cropH(c) { const im = crop(c.type), base = CH * (c.S.big || 1); return im.ok ? base * clamp(im.height / 178, 0.86, 1.3) : base; }
+  function layout() {
+    for (const S of SETS) for (const c of S.crops) { c.x = A.x + c.u * A.w; c.y = A.y + c.v * A.h; c.h = cropH(c); }
+    for (const S of SETS) if (S.path) {
+      const on = S.crops.filter((c) => c.on).sort((a, b) => a.x - b.x), pts = on.map((c) => [c.x, c.y - c.h * 0.45]);
+      const f = pts[0], l = pts[pts.length - 1];
+      pts.unshift([f[0] - Math.max(A.w * 0.14, CH * 1.4), f[1] - CH * 0.5]);
+      pts.push([Math.min(l[0] + Math.max(A.w * 0.07, CH * 0.7), W - CH * 0.6), l[1] - CH * 0.9]);
+      const P = paths[S.path] = curve(pts), R = CH * 0.5;
+      for (const c of on) { let best = 0, bd = 1e9; for (let k = 0; k <= 400; k++) { const p = along(P, k / 400), d = Math.hypot(p[0] - c.x, p[1] - (c.y - c.h * 0.45)); if (d < bd) { bd = d; best = k / 400; } } c.ct = best - (R * 0.35) / P.len; }
+    }
+  }
+  function curve(pts) {
+    const P = [pts[0], ...pts, pts[pts.length - 1]], out = [];
+    for (let i = 1; i < P.length - 2; i++) {
+      const p0 = P[i - 1], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2];
+      for (let k = 0; k < 24; k++) {
+        const t = k / 24, t2 = t * t, t3 = t2 * t, q = (j) => 0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3);
+        out.push([q(0), q(1)]);
+      }
+    }
+    out.push(pts[pts.length - 1]);
+    const L = [0]; for (let i = 1; i < out.length; i++) L.push(L[i - 1] + Math.hypot(out[i][0] - out[i - 1][0], out[i][1] - out[i - 1][1]));
+    return { pts: out, L, len: L[L.length - 1] || 1 };
+  }
+  function along(P, t) {
+    const d = clamp(t, 0, 1) * P.len; let lo = 0, hi = P.L.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (P.L[m] < d) lo = m; else hi = m; }
+    const k = (d - P.L[lo]) / (P.L[hi] - P.L[lo] || 1), a = P.pts[lo], b = P.pts[hi];
+    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+  }
+  // the soil, with its furrows, drawn once per size
+  function paintField() {
+    field.width = Math.round(W * DPR); field.height = Math.round(Math.max(1, H - fieldTop) * DPR);
+    const g = fctx, h = H - fieldTop; g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#8E6B4F'); gr.addColorStop(1, '#5F4433');
+    g.fillStyle = gr; g.fillRect(0, 0, W, h);
+    let y = CH * 0.22, k = 0;
+    while (y < h) {
+      const rh = CH * (0.34 + k * 0.045);
+      g.fillStyle = 'rgba(52, 30, 16, .26)'; g.fillRect(0, y, W, Math.max(2, rh * 0.16));
+      g.fillStyle = 'rgba(255, 236, 205, .07)'; g.fillRect(0, y + rh * 0.16, W, 1.5);
+      for (let i = 0; i < W / 26; i++) { const x = rnd(k * 97 + i) * W, yy = y + rnd(i * 13 + k) * rh; g.fillStyle = `rgba(40, 24, 12, ${0.1 + rnd(i + k * 7) * 0.12})`; g.beginPath(); g.ellipse(x, yy, 1.6 + rnd(i * 3) * 2.4, 1 + rnd(i * 5) * 1.2, 0, 0, Math.PI * 2); g.fill(); }
+      y += rh; k++;
+    }
+    g.fillStyle = 'rgba(30, 16, 6, .3)'; g.fillRect(0, 0, W, 3);
+  }
+
+  // ---- where the reader is: s = 0 on the opening, 1 on "Swipe to cut", ... 7 on the last card.
+  // The travel card stays pinned while s goes 4.8 → 5.2, and the countries change with it.
+  const cards = [...document.querySelectorAll('[data-stage]')];
+  let marks = [[0, 0]];
+  function measure() {
+    const ref = H * (wide ? 0.5 : 0.8), out = [];
+    for (const el of cards) {
+      const i = +el.dataset.stage;
+      if (el.classList.contains('pin')) {
+        const sec = el.parentElement, sr = sec.getBoundingClientRect(), top = sr.top + scrollY, cs = getComputedStyle(sec);
+        const st = parseFloat(getComputedStyle(el).top) || 0, h = el.offsetHeight;
+        const a = top + parseFloat(cs.paddingTop) - st, b = top + sr.height - parseFloat(cs.paddingBottom) - h - st;
+        out.push([a, i - 0.2], [Math.max(a + 1, b), i + 0.2]);
+      } else {
+        const r = el.getBoundingClientRect(); out.push([r.top + scrollY + r.height / 2 - ref, i]);
+      }
+    }
+    out.sort((p, q) => p[0] - q[0]); if (out.length) marks = out;
+  }
+  function storyAt(y) {
+    if (y <= marks[0][0]) return marks[0][1];
+    for (let k = 1; k < marks.length; k++) if (y <= marks[k][0]) { const [y0, s0] = marks[k - 1], [y1, s1] = marks[k]; return s0 + (s1 - s0) * (y - y0) / Math.max(1, y1 - y0); }
+    return marks[marks.length - 1][1];
+  }
+  // each chapter's action plays while its card comes in, and is done when the card is in place
+  const act = (s, i) => clamp((s - (i - 0.62)) / 0.6, 0, 1);
+  const worldAt = (s) => clamp((s - 4.8) / 0.4, 0, 0.9999) * LANDS.length;
+
+  // ---- sky over the day: morning, noon, golden hour, dusk (the bill), a quick night, morning again ... dusk
+  const SKY = [
+    [0, '#8CCBEE', '#FFE4BC', 0.1, 0], [0.8, '#62B9EA', '#CFEFFF', 0, 0], [2.15, '#62B9EA', '#CFEFFF', 0, 0],
+    [2.55, '#7A8FD0', '#FFC98C', 0.2, 0], [2.96, '#5C4E94', '#F2A060', 0.4, 0.06], [3.3, '#121A40', '#373170', 0.04, 0.8],
+    [3.6, '#8CCBEE', '#FFE4BC', 0.1, 0], [3.95, '#62B9EA', '#CFEFFF', 0, 0], [5.55, '#62B9EA', '#CFEFFF', 0, 0],
+    [6.3, '#7A8FD0', '#FFC98C', 0.2, 0], [6.95, '#5C4E94', '#F2A060', 0.4, 0.06], [99, '#5C4E94', '#F2A060', 0.4, 0.06],
+  ];
+  const SUN = [[0, 0.14, 0.4], [1, 0.34, 0.84], [2.15, 0.56, 0.9], [2.96, 0.72, 0.1], [3.18, 0.76, -0.3], [3.42, 0.12, -0.3], [3.62, 0.15, 0.4], [4.5, 0.4, 0.86], [5.6, 0.6, 0.86], [6.95, 0.64, 0.12], [99, 0.64, 0.12]];
+  function keyed(K, s) {
+    let a = K[0], b = K[K.length - 1];
+    for (let i = 0; i < K.length - 1; i++) if (s >= K[i][0] && s <= K[i + 1][0]) { a = K[i]; b = K[i + 1]; break; }
+    return [a, b, ease(clamp((s - a[0]) / (b[0] - a[0] || 1), 0, 1))];
+  }
+  const STARS = Array.from({ length: 70 }, (_, i) => [rnd(i * 3 + 1), rnd(i * 7 + 2), 0.6 + rnd(i * 11) * 1.1, i]);
+  const CLOUDS = [[0.08, 0.2, 1.1, 7], [0.46, 0.1, 0.8, 5], [0.78, 0.28, 1.25, 9], [0.3, 0.36, 0.7, 4]];
+  const FLAKES = Array.from({ length: 90 }, (_, i) => [rnd(i * 5 + 3), rnd(i * 9 + 4), 1 + rnd(i * 13) * 2.4, 0.5 + rnd(i * 17) * 0.8, i]);
+
+  // ---- effects
+  const parts = [], texts = [], flashes = [];
+  let trail = [], lastS = null, chainPop = -1e9, stampAt = -1e9, newAt = -1e9;
+  const R = () => CH * 0.55;
+  function cutFx(c, now) {
+    if (RM.matches) { texts.push({ t: '+$' + (VAL[c.type] || 1), x: c.x, y: c.y - c.h * 1.05, t0: now, still: true }); return; }
+    const im = crop(c.type); if (!im.ok) return;
+    const h = c.h, w = h * im.width / im.height;
+    if (parts.length < 160) {
+      parts.push({ kind: 'top', im, x: c.x, y: c.y, w, h, t0: now, vx: CH * (0.6 + rnd(now) * 0.8), vy: -CH * 3.2, vr: 4 + rnd(now + 1) * 3 });
+      parts.push({ kind: 'bot', im, x: c.x, y: c.y, w, h, t0: now });
+      for (let i = 0; i < 7; i++) parts.push({ kind: 'leaf', x: c.x + (rnd(now + i) - 0.5) * w * 0.5, y: c.y - h * (0.45 + rnd(now + i * 3) * 0.3), vx: (rnd(now + i * 5) - 0.4) * CH * 4, vy: -CH * (1.5 + rnd(now + i * 7) * 2.5), t0: now, col: ['#5DBB46', '#3E8E2F', '#9ADA62', '#F3A64B'][i % 4], r: CH * (0.04 + rnd(i) * 0.04) });
+    }
+    texts.push({ t: '+$' + (VAL[c.type] || 1), x: c.x + CH * 0.1, y: c.y - h * 1.02, t0: now });
+    flashes.push({ x: c.x, y: c.y - h * 0.45, t0: now });
+  }
+
+  // ---- drawing pieces
+  function ellipse(x, y, rx, ry) { ctx.beginPath(); ctx.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), 0, 0, Math.PI * 2); ctx.fill(); }
+  function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function drawCrop(c, k, now) {
+    const im = crop(c.type); if (!im.ok || k <= 0.01) return;
+    const h = c.h * k, w = h * im.width / im.height;
+    const b = RM.matches ? 0 : Math.sin(now / 480 + c.ph) * 0.028;
+    ctx.fillStyle = 'rgba(36, 20, 8, .28)'; ellipse(c.x, c.y - h * 0.02, w * 0.44, h * 0.075);
+    ctx.drawImage(im, c.x - (w * (1 - b)) / 2, c.y - h * (1 + b), w * (1 - b), h * (1 + b));
+  }
+  function drawPart(p, now) {
+    const t = (now - p.t0) / 1000, g = CH * 14;
+    if (p.kind === 'leaf') {
+      if (t > 0.8) return false;
+      ctx.globalAlpha = 1 - t / 0.8; ctx.fillStyle = p.col;
+      ellipse(p.x + p.vx * t, p.y + p.vy * t + 0.5 * g * 0.7 * t * t, p.r * 1.6, p.r); ctx.globalAlpha = 1; return true;
+    }
+    const life = p.kind === 'top' ? 0.62 : 0.34; if (t > life) return false;
+    ctx.save(); ctx.globalAlpha = clamp(1 - t / life, 0, 1);
+    if (p.kind === 'top') {
+      const x = p.x + p.vx * t, y = p.y + p.vy * t + 0.5 * g * t * t;
+      ctx.translate(x, y - p.h * 0.5); ctx.rotate(p.vr * t);
+      ctx.beginPath(); ctx.rect(-p.w, -p.h, p.w * 2, p.h * 0.95); ctx.clip();
+      ctx.drawImage(p.im, -p.w / 2, -p.h / 2, p.w, p.h);
+    } else {
+      const sink = t * p.h * 0.5;
+      ctx.beginPath(); ctx.rect(p.x - p.w, p.y - p.h * 0.45, p.w * 2, p.h * 0.45 + 1); ctx.clip();
+      ctx.drawImage(p.im, p.x - p.w / 2, p.y - p.h + sink, p.w, p.h);
+    }
+    ctx.restore(); return true;
+  }
+  // the game's sickle (its drawing, at the game's default colours), over a dashed reach ring and the finger
+  function drawSickle(x, y, a, now, tilt) {
+    const r = R();
+    ctx.save();
+    ctx.globalAlpha = a; ctx.setLineDash([5, 7]); ctx.lineDashOffset = RM.matches ? 0 : -now / 55;
+    ctx.strokeStyle = 'rgba(255, 249, 226, .75)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255, 246, 213, .08)'; ellipse(x, y, r, r);
+    ctx.translate(x, y); ctx.rotate(-0.62 + tilt); const z = CH / 50; ctx.scale(z, z); ctx.lineCap = 'round';
+    ctx.save(); ctx.translate(2, 4); ctx.strokeStyle = 'rgba(20, 28, 18, .28)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-14, 24); ctx.lineTo(6, -12); ctx.arc(-6, -18, 18, 0.2, Math.PI * 1.18, true); ctx.stroke(); ctx.restore();
+    const bg = ctx.createLinearGradient(-28, -36, 18, -6); bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.35, '#e2e8f0'); bg.addColorStop(0.75, '#94a3b8'); bg.addColorStop(1, '#475569');
+    ctx.fillStyle = bg; ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(6, -12); ctx.bezierCurveTo(18, -28, -4, -44, -26, -30); ctx.bezierCurveTo(-33, -25, -34, -16, -29, -12); ctx.bezierCurveTo(-24, -22, -4, -29, 3, -10); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#fffbeb'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-28, -14); ctx.bezierCurveTo(-20, -25, -3, -29, 4, -12); ctx.stroke();
+    ctx.strokeStyle = 'rgba(250, 204, 21, .75)'; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(-22, -26); ctx.bezierCurveTo(-10, -34, 6, -28, 5, -14); ctx.stroke();
+    ctx.save(); ctx.translate(4, -10); ctx.rotate(0.48); ctx.fillStyle = '#eab308'; ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.2; rrect(-4.2, -3.5, 8.4, 7, 2); ctx.fill(); ctx.stroke(); ctx.restore();
+    for (const [col, wd] of [['#78350f', 7.2], ['#c27838', 5]]) { ctx.strokeStyle = col; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(2, -7); ctx.quadraticCurveTo(-5, 8, -14, 23); ctx.stroke(); }
+    ctx.strokeStyle = '#f6d096'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(1, -7); ctx.quadraticCurveTo(-6, 7, -15, 22); ctx.stroke();
+    ctx.strokeStyle = '#451a03'; ctx.lineWidth = 1.4; for (const q of [0.28, 0.52, 0.76]) { const gx = lerp(2, -14, q), gy = lerp(-7, 23, q); ctx.beginPath(); ctx.moveTo(gx - 2.6, gy - 1.2); ctx.lineTo(gx + 2.6, gy + 1.2); ctx.stroke(); }
+    ctx.fillStyle = '#d97706'; ctx.strokeStyle = '#451a03'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(-14.5, 23.5, 3.8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  function drawTrail(now) {
+    trail = trail.filter((p) => now - p[2] < 170);
+    if (trail.length < 2 || RM.matches) return;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let i = 1; i < trail.length; i++) {
+      const a = trail[i - 1], b = trail[i], k = 1 - (now - b[2]) / 170;
+      ctx.strokeStyle = `rgba(255, 224, 130, ${0.5 * k})`; ctx.lineWidth = CH * 0.22 * k + 1; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 251, 235, ${0.9 * k})`; ctx.lineWidth = CH * 0.08 * k + 0.5; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function label(t, x, y, size, fill, stroke) {
+    ctx.font = `800 ${size}px "Big Shoulders Stencil", Impact, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(3, size * 0.16); ctx.strokeStyle = stroke || 'rgba(39, 23, 8, .8)'; ctx.strokeText(t, x, y); ctx.fillStyle = fill || '#FFFFFF'; ctx.fillText(t, x, y);
+  }
+  // a chip the way the game draws its own: cream (or ink) with a thick ink edge and a drop under it
+  function chip(x, y, txt, opt) {
+    const o = Object.assign({ size: CH * 0.24, bg: '#FFF4DC', fg: '#2B1708', pad: 0.62 }, opt || {});
+    const h = o.size * 1.9, font = (z) => `400 ${z}px "Lilita One", "Trebuchet MS", sans-serif`;
+    ctx.font = font(o.size); const tw = ctx.measureText(txt).width;
+    let bw = 0; if (o.badge) { ctx.font = font(o.size * 0.9); bw = ctx.measureText(o.badge).width + o.size * 0.95; }
+    const w = bw ? h * 0.16 + bw + o.size * 0.45 + tw + o.size * o.pad : tw + o.size * o.pad * 2, x0 = o.left ? x : x - w / 2;
+    ctx.fillStyle = '#2B1708'; rrect(x0, y + 3, w, h, h / 2); ctx.fill();
+    ctx.fillStyle = o.bg; ctx.strokeStyle = '#2B1708'; ctx.lineWidth = 2.5; rrect(x0, y, w, h, h / 2); ctx.fill(); ctx.stroke();
+    let tx = x0 + o.size * o.pad;
+    if (bw) {
+      const bh = h * 0.7, bx = x0 + h * 0.15, by = y + (h - bh) / 2, k = o.badgeScale || 1;
+      ctx.save(); ctx.translate(bx + bw / 2, by + bh / 2); ctx.scale(k, k);
+      ctx.fillStyle = '#FFC23D'; ctx.strokeStyle = '#2B1708'; ctx.lineWidth = 2; rrect(-bw / 2, -bh / 2, bw, bh, bh / 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#2B1708'; ctx.font = font(o.size * 0.9); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(o.badge, 0, o.size * 0.06);
+      ctx.restore(); tx = bx + bw + o.size * 0.45;
+    }
+    ctx.font = font(o.size); ctx.fillStyle = o.fg; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(txt, tx, y + h / 2 + o.size * 0.06);
+    return w;
+  }
+  function drawBill(a, now) {
+    const show = ease(clamp((a - 0.04) / 0.32, 0, 1)); if (show <= 0) return;
+    const bw = Math.min(A.w * (wide ? 0.66 : 0.92), wide ? 400 : 330), bh = bw * 0.64;
+    const cx = A.x + A.w / 2, cy = lerp(-bh, A.y + A.h * (wide ? 0.42 : 0.5), show);
+    // the day's coins fly into the bill
+    for (let i = 0; i < 12; i++) {
+      const k = clamp((a - 0.34 - i * 0.022) / 0.16, 0, 1); if (k <= 0 || k >= 1) continue;
+      const sx = A.x + rnd(i * 3 + 1) * A.w, sy = A.y + A.h * (0.6 + rnd(i * 5) * 0.5), x = lerp(sx, cx, k), y = lerp(sy, cy, k) - Math.sin(k * Math.PI) * CH * 1.2;
+      ctx.fillStyle = '#A96D12'; ellipse(x, y + 1.5, CH * 0.13, CH * 0.13); ctx.fillStyle = '#FFC23D'; ellipse(x, y, CH * 0.13, CH * 0.13); ctx.fillStyle = '#FFE9A6'; ellipse(x - CH * 0.04, y - CH * 0.04, CH * 0.04, CH * 0.04);
+    }
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.04 + (1 - show) * 0.2);
+    ctx.fillStyle = 'rgba(20, 10, 0, .35)'; rrect(-bw / 2 + 4, -bh / 2 + 10, bw, bh, 16); ctx.fill();
+    ctx.fillStyle = '#2B1708'; rrect(-bw / 2, -bh / 2 + 5, bw, bh, 16); ctx.fill();
+    ctx.fillStyle = '#FFF4DC'; ctx.strokeStyle = '#2B1708'; ctx.lineWidth = 3; rrect(-bw / 2, -bh / 2, bw, bh, 16); ctx.fill(); ctx.stroke();
+    const u = bw / 100;
+    ctx.fillStyle = '#6E4B31'; ctx.font = `900 ${u * 4.2}px Nunito, sans-serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    if (ctx.letterSpacing !== undefined) ctx.letterSpacing = `${u * 0.6}px`;
+    ctx.fillText('GRUMBLE & SONS', -bw / 2 + u * 7, -bh / 2 + u * 11);
+    if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '0px';
+    ctx.fillStyle = 'rgba(43, 23, 8, .14)'; ctx.fillRect(-bw / 2 + u * 7, -bh / 2 + u * 15, bw - u * 14, 2);
+    ctx.fillStyle = '#2B1708'; ctx.font = `400 ${u * 9}px "Lilita One", sans-serif`; ctx.fillText('Seed loan', -bw / 2 + u * 7, -bh / 2 + u * 30);
+    ctx.fillStyle = '#6E4B31'; ctx.font = `800 ${u * 4.6}px Nunito, sans-serif`; ctx.fillText('Due at sundown', -bw / 2 + u * 7, -bh / 2 + u * 39);
+    ctx.fillStyle = '#2B1708'; ctx.font = `400 ${u * 15}px "Lilita One", sans-serif`; ctx.textAlign = 'right'; ctx.fillText('$120', bw / 2 - u * 7, -bh / 2 + u * 36);
+    // the stamp
+    if (a >= 0.74) {
+      if (stampAt < 0) stampAt = now;
+      const k = RM.matches ? 1 : clamp((now - stampAt) / 260, 0, 1), sc = lerp(2.2, 1, ease(k));
+      ctx.save(); ctx.translate(u * 13, -bh / 2 + u * 51); ctx.rotate(-0.16); ctx.scale(sc, sc); ctx.globalAlpha = clamp(k * 1.6, 0, 1);
+      ctx.font = `400 ${u * 8.4}px "Lilita One", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tw = ctx.measureText('PAID IN FULL').width + u * 7, th = u * 13;
+      ctx.strokeStyle = '#2F7A3A'; ctx.lineWidth = u * 1.1; rrect(-tw / 2, -th / 2, tw, th, u * 2.4); ctx.stroke();
+      ctx.lineWidth = u * 0.45; rrect(-tw / 2 + u * 1.3, -th / 2 + u * 1.3, tw - u * 2.6, th - u * 2.6, u * 1.6); ctx.stroke();
+      ctx.fillStyle = '#2F7A3A'; ctx.fillText('PAID IN FULL', 0, u * 0.6);
+      ctx.restore();
+      if (k < 1 && !RM.matches) { ctx.globalAlpha = 1 - k; ctx.strokeStyle = 'rgba(47, 122, 58, .5)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(u * 13, -bh / 2 + u * 51, (0.4 + k) * bw * 0.4, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+    } else stampAt = -1;
+    ctx.restore();
+  }
+
+  // ---- one frame
+  let ss = null, last = 0, landShown = -1;
+  const $lands = [...document.querySelectorAll('#lands li')];
+  function frame(now) {
+    const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now;
+    if (relayout) { relayout = false; layout(); }
+    const target = storyAt(scrollY);
+    if (ss === null || RM.matches) ss = target; else ss += (target - ss) * (1 - Math.pow(0.0004, dt));
+    if (Math.abs(target - ss) < 0.0005) ss = target;
+    const s = ss, wl = worldAt(s), land = Math.floor(wl);
+    if (s > 3.3) for (const L of LANDS) { band(L.c); L.trio.forEach(crop); }
+    if (land !== landShown) { landShown = land; $lands.forEach((li, i) => li.classList.toggle('on', i === land)); }
+
+    // which crops are up, which are cut
+    for (const S of SETS) {
+      const inside = s >= S.from && s < S.to && (S.land === undefined || S.land === land);
+      for (const c of S.crops) {
+        const want = inside && (S.id !== 'grow' || act(s, 4) >= c.at) && (!c.wave || act(s, S.path) >= 0.985);
+        const cut = want && c.on && act(s, S.path) >= c.ct;
+        if (want && !c.vis) { c.vis = true; c.tIn = now + (S.id === 'grow' ? 0 : (c.wave ? 140 : 0) + c.i * 55); if (S.id === 'grow' && c.type === 'pei_russet') newAt = now; }
+        else if (!want && c.vis) { c.vis = false; c.tOut = c.cut ? -1e9 : now; }
+        if (cut && !c.cut) { c.cut = true; if (lastS !== null && Math.abs(s - lastS) < 0.25) cutFx(c, now); }
+        else if (!cut && c.cut) { c.cut = false; if (c.vis) c.tIn = now; }
+      }
+    }
+    lastS = s;
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // sky
+    const [a0, b0, k0] = keyed(SKY, s), top = mix(a0[1], b0[1], k0), hor = mix(a0[2], b0[2], k0), warm = lerp(a0[3], b0[3], k0), night = lerp(a0[4], b0[4], k0);
+    const sg = ctx.createLinearGradient(0, 0, 0, fieldTop); sg.addColorStop(0, top); sg.addColorStop(1, hor);
+    ctx.fillStyle = sg; ctx.fillRect(0, 0, W, fieldTop + 2);
+    if (night > 0.02) for (const [sx, sy, sz, i] of STARS) { const tw = RM.matches ? 1 : 0.6 + 0.4 * Math.sin(now / 600 + i); ctx.fillStyle = `rgba(255, 250, 230, ${night * tw})`; ellipse(sx * W, sy * (fieldTop - bandH * 0.5), sz, sz); }
+    // the sun
+    const [a1, b1, k1] = keyed(SUN, s), sx = W * lerp(a1[1], b1[1], k1), alt = lerp(a1[2], b1[2], k1);
+    const sunY = fieldTop - bandH * 0.3 - alt * Math.max(60, fieldTop - bandH * 0.3 - 90), sr = clamp(CH * 0.55, 30, 64);
+    if (alt > -0.25) {
+      const gl = ctx.createRadialGradient(sx, sunY, sr * 0.5, sx, sunY, sr * 3.2); gl.addColorStop(0, 'rgba(255, 232, 160, .55)'); gl.addColorStop(1, 'rgba(255, 210, 140, 0)');
+      ctx.fillStyle = gl; ctx.fillRect(sx - sr * 3.2, sunY - sr * 3.2, sr * 6.4, sr * 6.4);
+      ctx.fillStyle = mix('#FFE68A', '#FFB050', clamp(warm * 2.2, 0, 1)); ellipse(sx, sunY, sr, sr);
+      ctx.fillStyle = 'rgba(255, 255, 255, .25)'; ellipse(sx - sr * 0.25, sunY - sr * 0.3, sr * 0.35, sr * 0.25);
+    }
+    // clouds
+    for (const [cx0, cy0, cs, sp] of CLOUDS) {
+      const span = W + 300, x = ((cx0 * span + (RM.matches ? 0 : now * 0.006 * sp) + s * 30) % span) - 150, y = cy0 * (fieldTop - bandH * 0.6) + 50, z = cs * (wide ? 1.15 : 0.75);
+      ctx.fillStyle = mix('#FFFFFF', '#F7B9C8', clamp(warm * 2, 0, 1)); ctx.globalAlpha = 0.85 - night * 0.6;
+      for (const [ox, oy, rr] of [[0, 0, 22], [24, -9, 19], [46, 1, 17], [-20, 5, 14], [66, 6, 12]]) ellipse(x + ox * z, y + oy * z, rr * z, rr * z * 0.92);
+      ctx.globalAlpha = 1;
+    }
+    // the skyline: the farm's country (the travel chapter crossfades between them)
+    const pan = -s * 26;
+    if (s >= 4.24 && s < 5.5) {
+      const f = wl - land, nxt = Math.min(LANDS.length - 1, land + 1), fade = clamp((f - 0.82) / 0.18, 0, 1);
+      const enter = clamp((s - 4.24) / 0.16, 0, 1), leave = clamp((5.5 - s) / 0.16, 0, 1);
+      if (enter < 1) drawBand('ca', 1, pan);
+      drawBand(LANDS[land].c, Math.min(enter, 1), pan);
+      if (fade > 0 && nxt !== land) drawBand(LANDS[nxt].c, fade, pan);
+      if (leave < 1) drawBand('ca', 1 - leave, pan);
+    } else drawBand('ca', 1, pan);
+    // the field
+    ctx.drawImage(field, 0, fieldTop, W, H - fieldTop);
+    // crops, front to back by depth
+    const live = [];
+    for (const S of SETS) for (const c of S.crops) {
+      if (c.vis && !c.cut) { if (now >= c.tIn) live.push([c, RM.matches ? 1 : back((now - c.tIn) / 420)]); }
+      else if (!c.vis && !c.cut && now - c.tOut < 240 && !RM.matches) live.push([c, 1 - (now - c.tOut) / 240]);
+    }
+    live.sort((p, q) => p[0].y - q[0].y);
+    for (const [c, k] of live) drawCrop(c, k, now);
+    for (let i = parts.length - 1; i >= 0; i--) if (!drawPart(parts[i], now)) parts.splice(i, 1);
+    // the sickle on its way through the field
+    let sk = null;
+    if (s < 1.2) { const a = act(s, 1), p = along(paths[1], a); sk = [p[0], p[1], clamp((1.2 - s) / 0.08, 0, 1)]; }
+    else if (s > 1.26 && s < 2.2) { const a = act(s, 2), p = along(paths[2], a); sk = [p[0], p[1], clamp((s - 1.26) / 0.08, 0, 1) * clamp((2.2 - s) / 0.08, 0, 1)]; }
+    if (sk) {
+      if (!RM.matches) {
+        const bob = Math.sin(now / 380) * CH * 0.05, l = trail[trail.length - 1];
+        if (!l || Math.hypot(l[0] - sk[0], l[1] - sk[1]) > 0.5) trail.push([sk[0], sk[1], now]);
+        drawTrail(now);
+        const vx = l ? sk[0] - l[0] : 0; drawSickle(sk[0], sk[1] + bob, sk[2], now, clamp(vx * 0.02, -0.25, 0.25));
+      } else drawSickle(sk[0], sk[1], sk[2], now, 0);
+    } else trail = [];
+    // snow in Canada
+    const snow = s >= 4.24 && s < 5.5 && land === 0 ? clamp((s - 4.24) / 0.12, 0, 1) * clamp((0.9 - wl) / 0.15, 0, 1) : 0;
+    if (snow > 0) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * snow})`; ctx.beginPath();
+      for (const [fx, fy, fr, fs, i] of FLAKES.slice(0, wide ? 90 : 50)) {
+        const y = ((fy * (H + 40) + (RM.matches ? 0 : now * 0.04 * fs)) % (H + 40)) - 20, x = fx * W + (RM.matches ? 0 : Math.sin(now / 1100 + i) * 14);
+        ctx.moveTo(x + fr, y); ctx.arc(x, y, fr, 0, Math.PI * 2);
+      }
+      ctx.fill();
+    }
+    // dusk and night over the whole scene
+    if (warm > 0.01) { ctx.fillStyle = `rgba(255, 130, 70, ${warm * 0.2})`; ctx.fillRect(0, 0, W, H); }
+    if (night > 0.01) { ctx.fillStyle = `rgba(16, 14, 52, ${night * 0.55})`; ctx.fillRect(0, 0, W, H); }
+    // slashes and coin numbers
+    for (let i = flashes.length - 1; i >= 0; i--) {
+      const f = flashes[i], k = (now - f.t0) / 200; if (k >= 1) { flashes.splice(i, 1); continue; }
+      ctx.strokeStyle = `rgba(255, 251, 235, ${1 - k})`; ctx.lineWidth = CH * 0.1 * (1 - k) + 1; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(f.x, f.y, CH * (0.45 + k * 0.25), -2.4, -0.4); ctx.stroke();
+    }
+    for (let i = texts.length - 1; i >= 0; i--) {
+      const q = texts[i], k = (now - q.t0) / 900; if (k >= 1 && !q.still) { texts.splice(i, 1); continue; }
+      if (q.still && (k >= 1.4 || s > 2.2)) { texts.splice(i, 1); continue; }
+      ctx.globalAlpha = q.still ? 1 : (k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3);
+      label(q.t, q.x, q.y - (q.still ? 0 : ease(clamp(k, 0, 1)) * CH * 0.6), CH * 0.34, '#FFE08A');
+      ctx.globalAlpha = 1;
+    }
+    // the chain (chapter 2)
+    if (s > 1.3 && s < 2.2) {
+      const n = SETS[1].crops.filter((c) => c.cut).length, al = clamp((s - 1.3) / 0.1, 0, 1) * clamp((2.2 - s) / 0.08, 0, 1);
+      if (n >= 8 && chainPop < 0) chainPop = now; if (n < 8) chainPop = -1;
+      const pk = chainPop > 0 && !RM.matches ? clamp((now - chainPop) / 380, 0, 1) : 1, bs = chainPop > 0 ? back(pk) : 1;
+      ctx.globalAlpha = al;
+      const cx = wide ? A.x : W / 2 - CH * 1.5, cy = fieldTop + CH * 0.18;
+      chip(cx, cy, `Chain ${n}`, { left: true, bg: '#2B1708', fg: '#FFF4DC', badge: n >= 8 ? '×1.25' : '×1', badgeScale: bs, size: CH * 0.27 });
+      if (chainPop > 0 && pk < 1) { const last = SETS[1].crops[7]; label('×1.25!', last.x, last.y - last.h * 1.35 - pk * CH * 0.3, CH * 0.5, '#FFC23D'); }
+      ctx.globalAlpha = 1;
+    }
+    // the bill (chapter 3)
+    if (s > 2.3 && s < 3.3) { const al = clamp((3.3 - s) / 0.12, 0, 1); ctx.globalAlpha = al; drawBill(act(s, 3), now); ctx.globalAlpha = 1; } else stampAt = -1;
+    // what each crop is worth, and the new one (chapter 4)
+    if (s > 3.24 && s < 4.24) {
+      for (const c of SETS[3].crops) if (c.vis && now >= c.tIn) {
+        const k = RM.matches ? 1 : back((now - c.tIn) / 420);
+        ctx.save(); ctx.translate(c.x, c.y - c.h - CH * 0.1); ctx.scale(k, k);
+        chip(0, -CH * 0.6, '$' + VAL[c.type], { size: CH * 0.3 });
+        if (c.type === 'pei_russet') {
+          const nk = RM.matches ? 1 : back((now - newAt) / 500);
+          ctx.save(); ctx.translate(0, -CH * 0.86); ctx.scale(nk, nk); ctx.rotate(-0.06); chip(0, -CH * 0.42, 'NEW CROP', { size: CH * 0.22, bg: '#C9473A', fg: '#FFF4DC' }); ctx.restore();
+        }
+        ctx.restore();
+      }
+    }
+    // the country (chapter 5)
+    if (s > 4.3 && s < 5.45) {
+      const L = LANDS[land], al = clamp((s - 4.3) / 0.1, 0, 1) * clamp((5.45 - s) / 0.1, 0, 1);
+      ctx.globalAlpha = al; chip(wide ? A.x + A.w / 2 : W / 2, fieldTop + CH * 0.16, `${L.name} · ${L.farms} farms`, { size: CH * 0.3 }); ctx.globalAlpha = 1;
+    }
+    return Math.abs(target - ss) > 0.0005 || parts.length || texts.length || flashes.length;
+  }
+  function drawBand(code, alpha, pan) {
+    const im = band(code); if (!im.ok || alpha <= 0) return;
+    const k = Math.max(bandH / im.height, (W * 1.15) / im.width), bw = im.width * k, bh = im.height * k;
+    const x0 = clamp((wide ? W * 0.7 : W * 0.5) - bw * 0.6 + pan, W - bw, 0);
+    ctx.globalAlpha = alpha; ctx.drawImage(im, x0, fieldTop - bh + bh * 0.04, bw, bh); ctx.globalAlpha = 1;
+  }
+
+  let raf = 0;
+  function loop(now) { const busy = frame(now); raf = (RM.matches && !busy) || document.hidden ? 0 : requestAnimationFrame(loop); }
+  function kick() { if (!raf) raf = requestAnimationFrame(loop); }
+  addEventListener('resize', () => { size(); kick(); });
+  addEventListener('scroll', kick, { passive: true });
+  addEventListener('load', () => { measure(); kick(); });
+  document.addEventListener('visibilitychange', kick);
+  RM.addEventListener && RM.addEventListener('change', kick);
+  ['carrot', 'radish', 'pei_russet', 'fiddlehead', 'saskaberry'].forEach(crop); band('ca');
+  size();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measure(); kick(); });
+  kick();
+})();
+</script>
+
+</body>
+</html>
