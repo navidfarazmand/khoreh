@@ -43,6 +43,10 @@
   a { color: inherit; }
   :focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 12px; }
   #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+  /* on a computer the mouse is the sickle (drawn on its own small canvas above everything); links keep the hand */
+  #cursor { position: fixed; left: 0; top: 0; z-index: 9; pointer-events: none; display: none; }
+  .mouse-mode, .mouse-mode body { cursor: none; }
+  .mouse-mode a, .mouse-mode button, .mouse-mode summary, .mouse-mode label { cursor: pointer; }
 
   /* header */
   .top { position: fixed; top: 0; left: 0; right: 0; z-index: 6; padding-top: calc(12px + env(safe-area-inset-top, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: none; }
@@ -144,6 +148,7 @@
 <body>
 
 <canvas id="scene" aria-hidden="true"></canvas>
+<canvas id="cursor" aria-hidden="true"></canvas>
 <header class="top">
   <div class="bar">
     <a class="brand" href="#top" aria-label="Due by Dusk, back to the top"><img src="/due-by-dusk/img/icon-64.png" alt="" width="64" height="64">Due by Dusk</a>
@@ -252,7 +257,8 @@
   const logo = document.querySelector('.logo');
   if (logo) { const words = logo.textContent.split(' '); logo.textContent = ''; words.forEach((w, i) => { if (i) logo.append(' '); const s = document.createElement('span'); s.textContent = w; s.style.setProperty('--i', i); logo.append(s); }); }
 
-  const cv = document.getElementById('scene'), ctx = cv.getContext('2d');
+  const cv = document.getElementById('scene');
+  let ctx = cv.getContext('2d');
   const RM = matchMedia('(prefers-reduced-motion: reduce)');
   const IMG = '/due-by-dusk/img/';
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -270,7 +276,9 @@
   const crop = (id) => pic('crops/' + id + '.webp');
   const band = (c) => pic('bands/' + c + '.webp');
   // what a crop pays before any upgrade (the game's base values)
-  const VAL = { carrot: 1, radish: 5, pei_russet: 14 };
+  const VAL = { carrot: 1, radish: 5, pei_russet: 14, fiddlehead: 11, saskaberry: 13, habanero: 16, sweetcorn: 17, brisket_onion: 15, abacaxi: 15, mandioca: 12, guarana: 13, chickpea: 15, eggplant: 17, olive: 16, lavender: 11, echalote: 12, artichaut: 15, bittermelon: 16, bokchoy: 15, lotusroot: 17, daikon: 12, kabocha: 16, wasabi: 14 };
+  const HP = { carrot: 1, radish: 3, pei_russet: 12, fiddlehead: 7, saskaberry: 8, habanero: 10, sweetcorn: 12, brisket_onion: 11, abacaxi: 12, mandioca: 9, guarana: 6, chickpea: 9, eggplant: 11, olive: 10, lavender: 6, echalote: 7, artichaut: 13, bittermelon: 10, bokchoy: 9, lotusroot: 11, daikon: 9, kabocha: 15, wasabi: 6 };
+  const swipesFor = (t) => (t === 'radish' ? 1 : (HP[t] || 1) >= 10 ? 3 : (HP[t] || 1) >= 5 ? 2 : 1);
   const LANDS = [
     { c: 'ca', name: 'Canada', farms: 6, trio: ['pei_russet', 'fiddlehead', 'saskaberry'], snow: true },
     { c: 'us', name: 'USA', farms: 3, trio: ['habanero', 'sweetcorn', 'brisket_onion'] },
@@ -294,7 +302,7 @@
     ...LANDS.map((L, k) => ({ id: 'w' + k, from: 4.24, to: 5.5, land: k, big: 1.18, rows: [[0.16, 0.88, L.trio[0]], [0.5, 0.42, L.trio[1]], [0.84, 0.88, L.trio[2]]] })),
     { id: 'end', from: 6.45, to: 99, rows: [[0.1, 0.78, 'carrot'], [0.36, 0.3, 'pei_russet'], [0.62, 0.86, 'saskaberry'], [0.9, 0.36, 'fiddlehead']] },
   ];
-  for (const S of SETS) S.crops = S.rows.map(([u, v, type, f], i) => ({ S, u, v, type, on: !!(f && f.on), wave: !!(f && f.wave), at: (f && f.at) || 0, i, x: 0, y: 0, h: 0, ph: rnd(i + S.id.length * 9) * 6.28, vis: false, cut: false, tIn: -1e9, tOut: -1e9, ct: 2 }));
+  for (const S of SETS) S.crops = S.rows.map(([u, v, type, f], i) => ({ S, u, v, type, on: !!(f && f.on), wave: !!(f && f.wave), at: (f && f.at) || 0, i, x: 0, y: 0, h: 0, ph: rnd(i + S.id.length * 9) * 6.28, vis: false, cut: false, tIn: -1e9, tOut: -1e9, ct: 2, ox: 0, oy: 0, vx: 0, vy: 0, panic: 0, hits: 0, hitAt: -1e9, mcut: false, regrowAt: 0 }));
 
   // ---- layout
   let W = 0, H = 0, DPR = 1, wide = false, fieldTop = 0, bandH = 0, CH = 60, A = { x: 0, y: 0, w: 1, h: 1 };
@@ -313,7 +321,7 @@
       CH = clamp(Math.min(W * 0.15, H * 0.075), 46, 84);
       A = { x: W * 0.08, y: fieldTop + CH * 1.05, w: W * 0.84, h: Math.max(CH * 1.4, H * 0.58 - fieldTop - CH * 1.05 - CH * 0.2) };
     }
-    paintField(); layout(); measure();
+    paintField(); layout(); measure(); if (typeof sizeCursor === 'function' && cc) sizeCursor();
   }
   function cropH(c) { const im = crop(c.type), base = CH * (c.S.big || 1); return im.ok ? base * clamp(im.height / 178, 0.86, 1.3) : base; }
   function layout() {
@@ -413,16 +421,17 @@
   let trail = [], lastS = null, chainPop = -1e9, stampAt = -1e9, newAt = -1e9;
   const R = () => CH * 0.55;
   function cutFx(c, now) {
-    if (RM.matches) { texts.push({ t: '+$' + (VAL[c.type] || 1), x: c.x, y: c.y - c.h * 1.05, t0: now, still: true }); return; }
+    const X = c.x + c.ox, Y = c.y + c.oy;
+    if (RM.matches) { texts.push({ t: '+$' + (VAL[c.type] || 1), x: X, y: Y - c.h * 1.05, t0: now, still: true }); return; }
     const im = crop(c.type); if (!im.ok) return;
     const h = c.h, w = h * im.width / im.height;
     if (parts.length < 160) {
-      parts.push({ kind: 'top', im, x: c.x, y: c.y, w, h, t0: now, vx: CH * (0.6 + rnd(now) * 0.8), vy: -CH * 3.2, vr: 4 + rnd(now + 1) * 3 });
-      parts.push({ kind: 'bot', im, x: c.x, y: c.y, w, h, t0: now });
-      for (let i = 0; i < 7; i++) parts.push({ kind: 'leaf', x: c.x + (rnd(now + i) - 0.5) * w * 0.5, y: c.y - h * (0.45 + rnd(now + i * 3) * 0.3), vx: (rnd(now + i * 5) - 0.4) * CH * 4, vy: -CH * (1.5 + rnd(now + i * 7) * 2.5), t0: now, col: ['#5DBB46', '#3E8E2F', '#9ADA62', '#F3A64B'][i % 4], r: CH * (0.04 + rnd(i) * 0.04) });
+      parts.push({ kind: 'top', im, x: X, y: Y, w, h, t0: now, vx: CH * (0.6 + rnd(now) * 0.8), vy: -CH * 3.2, vr: 4 + rnd(now + 1) * 3 });
+      parts.push({ kind: 'bot', im, x: X, y: Y, w, h, t0: now });
+      for (let i = 0; i < 7; i++) parts.push({ kind: 'leaf', x: X + (rnd(now + i) - 0.5) * w * 0.5, y: Y - h * (0.45 + rnd(now + i * 3) * 0.3), vx: (rnd(now + i * 5) - 0.4) * CH * 4, vy: -CH * (1.5 + rnd(now + i * 7) * 2.5), t0: now, col: ['#5DBB46', '#3E8E2F', '#9ADA62', '#F3A64B'][i % 4], r: CH * (0.04 + rnd(i) * 0.04) });
     }
-    texts.push({ t: '+$' + (VAL[c.type] || 1), x: c.x + CH * 0.1, y: c.y - h * 1.02, t0: now });
-    flashes.push({ x: c.x, y: c.y - h * 0.45, t0: now });
+    texts.push({ t: '+$' + (VAL[c.type] || 1), x: X + CH * 0.1, y: Y - h * 1.02, t0: now });
+    flashes.push({ x: X, y: Y - h * 0.45, t0: now });
   }
 
   // ---- drawing pieces
@@ -430,10 +439,19 @@
   function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
   function drawCrop(c, k, now) {
     const im = crop(c.type); if (!im.ok || k <= 0.01) return;
-    const h = c.h * k, w = h * im.width / im.height;
+    const h = c.h * k, w = h * im.width / im.height, x = c.x + c.ox, y = c.y + c.oy;
     const b = RM.matches ? 0 : Math.sin(now / 480 + c.ph) * 0.028;
-    ctx.fillStyle = 'rgba(36, 20, 8, .28)'; ellipse(c.x, c.y - h * 0.02, w * 0.44, h * 0.075);
-    ctx.drawImage(im, c.x - (w * (1 - b)) / 2, c.y - h * (1 + b), w * (1 - b), h * (1 + b));
+    ctx.fillStyle = 'rgba(36, 20, 8, .28)'; ellipse(x, y - h * 0.02, w * 0.44, h * 0.075);
+    const p = RM.matches ? 0 : c.panic, hit = RM.matches ? 0 : clamp(1 - (now - c.hitAt) / 180, 0, 1);
+    const rot = p > 0.3 ? Math.sin(now * 0.032) * 0.07 + clamp((x - mouse.x) / (CH * 2.5), -1, 1) * 0.1 * p : 0;
+    ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot); ctx.scale((1 - b) * (1 + hit * 0.16), (1 + b) * (1 - hit * 0.16));
+    ctx.drawImage(im, -w / 2, -h, w, h);
+    ctx.restore();
+    if (p > 0.6) {
+      const dx = x + w * 0.34, dy = y - h * 0.86 + ((now / 700 + c.ph) % 1) * h * 0.14, r = CH * 0.05;
+      ctx.fillStyle = 'rgba(170, 220, 255, .95)'; ctx.strokeStyle = 'rgba(43, 23, 8, .7)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(dx, dy - r * 2.2); ctx.quadraticCurveTo(dx + r * 1.3, dy - r * 0.2, dx, dy + r); ctx.quadraticCurveTo(dx - r * 1.3, dy - r * 0.2, dx, dy - r * 2.2); ctx.fill(); ctx.stroke();
+    }
   }
   function drawPart(p, now) {
     const t = (now - p.t0) / 1000, g = CH * 14;
@@ -456,7 +474,8 @@
     }
     ctx.restore(); return true;
   }
-  // the game's sickle (its drawing, at the game's default colours), over a dashed reach ring and the finger
+  function drawSickleOn(g, x, y, a, now, tilt) { const keep = ctx; ctx = g; try { drawSickle(x, y, a, now, tilt); } finally { ctx = keep; } }
+  // the game's sickle (its drawing, at the game's default colours), over a dashed reach ring
   function drawSickle(x, y, a, now, tilt) {
     const r = R();
     ctx.save();
@@ -572,11 +591,12 @@
         const cut = want && c.on && act(s, S.path) >= c.ct;
         if (want && !c.vis) { c.vis = true; c.tIn = now + (S.id === 'grow' ? 0 : (c.wave ? 140 : 0) + c.i * 55); if (S.id === 'grow' && c.type === 'pei_russet') newAt = now; }
         else if (!want && c.vis) { c.vis = false; c.tOut = c.cut ? -1e9 : now; }
-        if (cut && !c.cut) { c.cut = true; if (lastS !== null && Math.abs(s - lastS) < 0.25) cutFx(c, now); }
+        if (cut && !c.cut) { c.cut = true; if (!c.mcut && lastS !== null && Math.abs(s - lastS) < 0.25) cutFx(c, now); }
         else if (!cut && c.cut) { c.cut = false; if (c.vis) c.tIn = now; }
       }
     }
     lastS = s;
+    const busyMouse = mouseField(now, dt);
 
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     // sky
@@ -615,12 +635,13 @@
     // crops, front to back by depth
     const live = [];
     for (const S of SETS) for (const c of S.crops) {
-      if (c.vis && !c.cut) { if (now >= c.tIn) live.push([c, RM.matches ? 1 : back((now - c.tIn) / 420)]); }
+      if (c.vis && !c.cut && !c.mcut) { if (now >= c.tIn) live.push([c, RM.matches ? 1 : back((now - c.tIn) / 420)]); }
       else if (!c.vis && !c.cut && now - c.tOut < 240 && !RM.matches) live.push([c, 1 - (now - c.tOut) / 240]);
     }
-    live.sort((p, q) => p[0].y - q[0].y);
+    live.sort((p, q) => p[0].y + p[0].oy - (q[0].y + q[0].oy));
     for (const [c, k] of live) drawCrop(c, k, now);
     for (let i = parts.length - 1; i >= 0; i--) if (!drawPart(parts[i], now)) parts.splice(i, 1);
+    drawMouseTrail(now);
     // the sickle on its way through the field
     let sk = null;
     if (s < 1.2) { const a = act(s, 1), p = along(paths[1], a); sk = [p[0], p[1], clamp((1.2 - s) / 0.08, 0, 1)]; }
@@ -674,9 +695,9 @@
     if (s > 2.3 && s < 3.3) { const al = clamp((3.3 - s) / 0.12, 0, 1); ctx.globalAlpha = al; drawBill(act(s, 3), now); ctx.globalAlpha = 1; } else stampAt = -1;
     // what each crop is worth, and the new one (chapter 4)
     if (s > 3.24 && s < 4.24) {
-      for (const c of SETS[3].crops) if (c.vis && now >= c.tIn) {
+      for (const c of SETS[3].crops) if (c.vis && !c.mcut && now >= c.tIn) {
         const k = RM.matches ? 1 : back((now - c.tIn) / 420);
-        ctx.save(); ctx.translate(c.x, c.y - c.h - CH * 0.1); ctx.scale(k, k);
+        ctx.save(); ctx.translate(c.x + c.ox, c.y + c.oy - c.h - CH * 0.1); ctx.scale(k, k);
         chip(0, -CH * 0.6, '$' + VAL[c.type], { size: CH * 0.3 });
         if (c.type === 'pei_russet') {
           const nk = RM.matches ? 1 : back((now - newAt) / 500);
@@ -690,7 +711,84 @@
       const L = LANDS[land], al = clamp((s - 4.3) / 0.1, 0, 1) * clamp((5.45 - s) / 0.1, 0, 1);
       ctx.globalAlpha = al; chip(wide ? A.x + A.w / 2 : W / 2, fieldTop + CH * 0.16, `${L.name} · ${L.farms} farms`, { size: CH * 0.3 }); ctx.globalAlpha = 1;
     }
-    return Math.abs(target - ss) > 0.0005 || parts.length || texts.length || flashes.length;
+    drawMouseSickle(now);
+    return Math.abs(target - ss) > 0.0005 || parts.length || texts.length || flashes.length || busyMouse;
+  }
+
+  // ---- on a computer, the mouse is the sickle (phones keep the page as it is)
+  const FINE = matchMedia('(hover: hover) and (pointer: fine)');
+  const mouse = { on: false, x: -1e4, y: -1e4, vx: 0, vy: 0, t: 0, ui: false, swing: -1e9 };
+  const cc = document.getElementById('cursor'), cctx = cc.getContext('2d'), hint = document.querySelector('.hint');
+  let CS = 0, mtrail = [];
+  function sizeCursor() { CS = Math.round(CH * 2.7); cc.width = Math.round(CS * DPR); cc.height = Math.round(CS * DPR); cc.style.width = CS + 'px'; cc.style.height = CS + 'px'; }
+  function mouseMode() {
+    const on = FINE.matches;
+    document.documentElement.classList.toggle('mouse-mode', on);
+    if (!on) { mouse.on = false; cc.style.display = 'none'; }
+    if (hint && hint.lastChild) hint.lastChild.textContent = on ? 'Scroll to play a day. Your mouse is a sickle.' : 'Scroll to play a day';
+  }
+  addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' || !FINE.matches) return;
+    const now = performance.now(), dt = Math.max(4, now - (mouse.t || now - 16)) / 1000;
+    if (mouse.on) { mouse.vx = mouse.vx * 0.5 + ((e.clientX - mouse.x) / dt) * 0.5; mouse.vy = mouse.vy * 0.5 + ((e.clientY - mouse.y) / dt) * 0.5; }
+    mouse.x = e.clientX; mouse.y = e.clientY; mouse.t = now; mouse.on = true;
+    mouse.ui = !!(e.target && e.target.closest && e.target.closest('a, button, summary, label, input, select, textarea'));
+    mtrail.push([mouse.x, mouse.y, now]);
+    kick();
+  }, { passive: true });
+  document.addEventListener('mouseout', (e) => { if (!e.relatedTarget) { mouse.on = false; kick(); } });
+  addEventListener('blur', () => { mouse.on = false; kick(); });
+  FINE.addEventListener && FINE.addEventListener('change', () => { mouseMode(); kick(); });
+  function mouseField(now, dt) {
+    if (now - mouse.t > 40) { const k = Math.exp(-14 * dt); mouse.vx *= k; mouse.vy *= k; }
+    const M = mouse.on && FINE.matches && !mouse.ui, sp = Math.hypot(mouse.vx, mouse.vy), r = R();
+    let moving = false;
+    for (const S of SETS) for (const c of S.crops) {
+      if (!c.vis || c.cut) { c.ox = c.oy = c.vx = c.vy = c.panic = 0; c.mcut = false; c.hits = 0; continue; }
+      if (c.mcut) { if (now >= c.regrowAt) { c.mcut = false; c.hits = 0; c.ox = c.oy = c.vx = c.vy = 0; c.tIn = now; } continue; }
+      const bx = c.x + c.ox, by = c.y + c.oy - c.h * 0.45, d = M ? Math.hypot(bx - mouse.x, by - mouse.y) : 1e9;
+      c.panic = d < r + CH * 1.15 ? 1 : Math.max(0, c.panic - dt * 2);
+      if (c.type === 'radish') {
+        // the Runaway Radish (the game's moveRadish, scaled to the page): it runs from the sickle; only a fast swipe catches it
+        if (d < r + CH * 1.7) { const k = (CH * 34 * dt) / Math.max(1, d); c.vx += (bx - mouse.x) * k; c.vy += (by - mouse.y) * k; }
+        else { c.vx -= c.ox * 5 * dt; c.vy -= c.oy * 5 * dt; }
+        const damp = Math.exp(-5 * dt); c.vx *= damp; c.vy *= damp;
+        const maxV = CH * 6.2, v = Math.hypot(c.vx, c.vy); if (v > maxV) { c.vx *= maxV / v; c.vy *= maxV / v; }
+        let nx = c.x + c.ox + c.vx * dt, ny = c.y + c.oy + c.vy * dt;
+        const x0 = wide ? A.x - CH * 0.4 : CH * 0.5, y0 = fieldTop + CH * 1.05, y1 = wide ? H - CH * 0.3 : A.y + A.h + CH * 0.3;
+        if (nx < x0 || nx > W - CH * 0.5) { c.vx *= -0.4; nx = clamp(nx, x0, W - CH * 0.5); }
+        if (ny < y0 || ny > y1) { c.vy *= -0.4; ny = clamp(ny, y0, y1); }
+        c.ox = nx - c.x; c.oy = ny - c.y;
+        if (v > 2 || Math.hypot(c.ox, c.oy) > 1) moving = true;
+      }
+      // a swipe cuts: one hit per pass, and the tough crops take two or three
+      if (M && sp > CH * 2.4 && d < r * 0.9 + CH * 0.2 && now - c.hitAt > 170) {
+        c.hitAt = now; c.hits++; mouse.swing = now;
+        if (c.hits >= swipesFor(c.type)) { c.mcut = true; c.regrowAt = now + 2600; cutFx(c, now); }
+        else flashes.push({ x: bx, y: by, t0: now });
+      }
+    }
+    return moving || (M && sp > 1);
+  }
+  function drawMouseTrail(now) {
+    mtrail = mtrail.filter((q) => now - q[2] < 150);
+    if (!mouse.on || mouse.ui || RM.matches || mtrail.length < 2 || Math.hypot(mouse.vx, mouse.vy) < CH * 2.4) return;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let i = 1; i < mtrail.length; i++) {
+      const a = mtrail[i - 1], b = mtrail[i], k = 1 - (now - b[2]) / 150;
+      ctx.strokeStyle = `rgba(255, 224, 130, ${0.45 * k})`; ctx.lineWidth = CH * 0.2 * k + 1; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 251, 235, ${0.85 * k})`; ctx.lineWidth = CH * 0.07 * k + 0.5; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawMouseSickle(now) {
+    if (!FINE.matches) return;
+    if (!mouse.on || mouse.ui) { cc.style.display = 'none'; return; }
+    cc.style.display = 'block';
+    const half = CS / 2; cc.style.transform = `translate3d(${mouse.x - half}px, ${mouse.y - half}px, 0)`;
+    cctx.setTransform(DPR, 0, 0, DPR, 0, 0); cctx.clearRect(0, 0, CS, CS);
+    const swing = !RM.matches && now - mouse.swing < 130 ? Math.sin(((now - mouse.swing) / 130) * Math.PI) * 0.9 : 0;
+    drawSickleOn(cctx, half, half, 1, now, clamp(mouse.vx * 0.0004, -0.18, 0.18) + swing);
   }
   function drawBand(code, alpha, pan) {
     const im = band(code); if (!im.ok || alpha <= 0) return;
@@ -708,7 +806,7 @@
   document.addEventListener('visibilitychange', kick);
   RM.addEventListener && RM.addEventListener('change', kick);
   ['carrot', 'radish', 'pei_russet', 'fiddlehead', 'saskaberry'].forEach(crop); band('ca');
-  size();
+  size(); sizeCursor(); mouseMode();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measure(); kick(); });
   kick();
 })();

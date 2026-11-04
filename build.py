@@ -19,9 +19,9 @@ SITE = 'https://khoreh.com'
 PAGES = [
     dict(src='home.html', out=['index.html'], url='/', theme='#2B1708',
          icon='/img/khoreh-icon-64.png', touch='/img/khoreh-touch.png', image='/img/khoreh-og.png',
-         desc='Khoreh makes small games: Due by Dusk, a farming game about a very big debt, and Maplewick, a town that grows while you focus.',
+         desc='Khoreh makes Due by Dusk, a farming game about a very big debt, and Maplewick, a focus app for ADHD minds where your town grows while you focus.',
          og_title='Khoreh: two little worlds',
-         og_desc='Due by Dusk, a farming game for Android, and Maplewick, a focus game in development.'),
+         og_desc='Due by Dusk, a farming game for Android, and Maplewick, a focus app for ADHD minds, in development.'),
     dict(src='due-by-dusk.html', out=['due-by-dusk/index.html'], url='/due-by-dusk/', theme='#5C4E94',
          icon='/due-by-dusk/img/icon-64.png', touch='/due-by-dusk/img/apple-touch-icon.png', image='/due-by-dusk/img/og.png',
          desc='Due by Dusk is a farming game for Android: swipe to cut crops, keep the chain going and pay the bills before sundown, across 30 farms in seven countries.',
@@ -29,7 +29,7 @@ PAGES = [
          og_desc='Swipe to cut, chain for more, pay by dusk. A farming game for Android, now in testing.'),
     dict(src='maplewick.html', out=['maplewick/index.html'], url='/maplewick/', theme='#5B2DB8',
          icon='/img/icon-64.png', touch='/img/apple-touch-icon.png', image='/img/og.png',
-         desc='Maplewick is a cozy island town that only grows while you focus. A focus game made for ADHD minds, in development.',
+         desc='Maplewick is a focus app made for ADHD minds: a cozy island town that only grows while you focus. In development.',
          og_title='Maplewick: your focus builds a town',
          og_desc='A cozy island town that only grows while you focus. Made for ADHD minds. In development.'),
 ]
