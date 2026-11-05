@@ -3,7 +3,8 @@
 The website for Khoreh's games: a front page with both games, and one page for each.
 
 - `index.html` (and `404.html`) is the Khoreh front page, built from `src/home.html`.
-- `due-by-dusk/index.html` is the Due by Dusk page, built from `src/due-by-dusk.html`. Scrolling plays one farm day on a canvas, with the game's own crops (`due-by-dusk/img/crops`) and country skylines (`due-by-dusk/img/bands`).
+- `due-by-dusk/index.html` is the Due by Dusk page, built from `src/due-by-dusk.html`. Scrolling plays one farm day on a canvas, with the game's own crops and country skylines (`due-by-dusk/img/bands`). The crops in `due-by-dusk/img/faces` are drawn by the game's own renderer: every crop idle, and the carrot and radish also nervous (looking left and right), shocked and running. On a computer the mouse is a sickle that cuts only at the top of the page; further down it is just a pointer.
+- `due-by-dusk/img/crops` holds the four crop pictures the front page uses.
 - `maplewick/index.html` is the Maplewick page, built from `src/maplewick.html`. Maplewick is still in development.
 - Run `python3 build.py` after changing anything in `src/`, and do not edit the built pages by hand.
 - `due-by-dusk/privacy.html` is Due by Dusk's privacy policy (the Play listing links to it).
