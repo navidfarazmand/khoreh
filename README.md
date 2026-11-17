@@ -8,7 +8,8 @@ The website for Khoreh's games: a front page with both games, and one page for e
 - `maplewick/index.html` is the Maplewick page, built from `src/maplewick.html`. Maplewick is still in development.
 - Run `python3 build.py` after changing anything in `src/`, and do not edit the built pages by hand.
 - `due-by-dusk/privacy.html` is Due by Dusk's privacy policy (the Play listing links to it).
+- `tapestry/privacy.html` is Tapestry's privacy policy (the Play listing links to it). Tapestry has no page of its own yet.
 - `privacy.html` and `support.html` are Maplewick's pages for its App Store listing; they stay at the site root.
-- `app-ads.txt` authorizes Google AdMob to sell ads in apps that list khoreh.com as their developer website (Due by Dusk).
+- `app-ads.txt` authorizes Google AdMob to sell ads in apps that list khoreh.com as their developer website (Due by Dusk and Tapestry).
 - `CNAME` tells GitHub Pages to serve this site on khoreh.com.
 - `src/og-khoreh.html` is the front page's link-preview image, saved as `img/khoreh-og.png`.
